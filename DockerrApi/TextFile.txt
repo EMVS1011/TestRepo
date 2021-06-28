@@ -1,0 +1,52 @@
+﻿# Get base SDK Image from Microsoft
+# We must do this first beacuse we will need it to 
+# build our project (i.e. have object code that is 
+# dotnet)
+FROM mcr.microsoft.com/dotnet/core/sdk:5.0 AS build-env
+
+# We are creating a working directory where we'll be doing
+# all of our stuff
+# This also will PUT us into our directory - in other words 
+# any copy steps, any run steps, will all happen within this
+# directory until we say otherwise
+WORKDIR /app
+
+# Copy the CSPROJ file and restore any dependencies (via NUGET)
+
+# i.e. we are downloading this file DIRECTLY from our computer
+# into our working directory - this is necessary so that any dependencies
+# we might have can get restored if need be (think about packages etc)
+COPY *.csproj ./
+RUN dotnet restore
+
+# Copy the project files and build our release
+# essentially we're copying everything else BUTTTTT notice that there 
+# might be some files we don't want to copy - the unnecessary ones 
+# that are simply... not necessary
+COPY . ./
+
+# -c configuration flag
+RUN dotnet publish -c Release -o out
+
+# Generate runtime image
+
+# remember we want our containers to be SMALL and efficient
+# and lean
+# we don't want to use the FULL dotnet core SDK - it's only 
+# required for build activities - its really just extra fluff
+# that we don't need at runtime so what we're doing is saying 
+# we're just going to use the dotnet core runtime inside our
+# container going forward - that's all we need!
+FROM mcr.microsoft.com/dotnet/core/aspnet:5.0
+WORKDIR /app
+
+# Exposing a port for use
+EXPOSE 80
+
+# multi part builder - taking pieces from our previous steps
+# and putting it into our working directory
+COPY --from=build-env /app/out .
+
+# specifying our entry point - how do we want our container and
+# when it does, what do we want it to do?
+ENTRYPOINT ["dotnet", "DockerAPI.dll"]
